@@ -65,7 +65,7 @@ void WaypointsGlobalPlanner::initialize(std::string name, costmap_2d::Costmap2DR
     ros::NodeHandle pnh("~" + name);
 
     // Parameter list
-    pnh.param<std::string>("map_frame", map_frame_, "map"); 
+    pnh.param<std::string>("map_frame", map_frame_, "odom");
 
     // Subscribe desired path and file path to populate the plan
     desired_path_sub_ = pnh.subscribe("/desired_path", 1, &WaypointsGlobalPlanner::desiredPathCallback, this);

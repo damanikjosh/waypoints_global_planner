@@ -1,19 +1,52 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 import rospy
+import rospkg
+import numpy as np
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 
-import path_planner as pp
+from path_planning.Bezier import Bezier
 import path_planning.PoseHelper as PoseHelper
 
-trajectory_type = "dubins"
-id = "map"
+world_idx = 0
+id = "odom"
+
+INIT_POSITION = [-2.25, 3, 1.57]  # in world frame
+GOAL_POSITION = [0, 10]  # relative to the initial position
+
+
+def path_coord_to_gazebo_coord(x, y):
+    RADIUS = 0.075
+    r_shift = -RADIUS - (30 * RADIUS * 2)
+    c_shift = RADIUS + 5
+
+    gazebo_x = x * (RADIUS * 2) + r_shift
+    gazebo_y = y * (RADIUS * 2) + c_shift
+
+    return (gazebo_x, gazebo_y)
+
 
 def prepare_path():
+    rospack = rospkg.RosPack()
+    jackal_helper = rospack.get_path('jackal_helper')
+
     desired_path = Path()
-    samples, yaw_samples = pp.prepare_desired_path(trajectory_type)
+    path_array = np.load(f'{jackal_helper}/worlds/BARN/path_files/path_{world_idx}.npy')
+    # path_array = path_array[10:]
+    path_array = [path_coord_to_gazebo_coord(*p) for p in path_array]
+    path_array = np.insert(path_array, 0, (INIT_POSITION[0], INIT_POSITION[1]), axis=0)
+    path_array = np.insert(path_array, len(path_array),
+                           (INIT_POSITION[0] + GOAL_POSITION[0], INIT_POSITION[1] + GOAL_POSITION[1]), axis=0)
+    path_array = np.array(path_array) - np.array(INIT_POSITION[:2])
+
+    shape = Bezier(path_array, False)
+    #
+    samples, yaw_samples = shape.sample_points()
+    # samples = path_array
+
+
     for t, point in enumerate(samples, start=0):
-        pose = PoseHelper.prepare_posestamped(samples[t][0], samples[t][1], yaw_samples[t])
+        pose = PoseHelper.prepare_posestamped(samples[t][0], samples[t][1], 1.57)
         pose.header.seq = t 
         pose.header.frame_id = id
         pose.header.stamp = rospy.get_rostime()
@@ -35,7 +68,7 @@ def path_publisher():
 if __name__ == '__main__':
     rospy.init_node('desired_path_node')
     rospy.loginfo("desired_path node is started!!")
-    trajectory_type =  rospy.get_param('~trajectory_type')
+    world_idx =  rospy.get_param('~world_idx')
     try:
         path_publisher()
     except rospy.ROSInterruptException:
